@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Live countdown of the seconds remaining until midnight." />
+  <title>12 AM</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="12 AM" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500&family=Orbitron:wght@600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root { --accent:#4f8cff; --ice:#9cc2ff; }
+    *,*::before,*::after { box-sizing:border-box; }
+    html,body { height:100%; margin:0; }
+    body {
+      background:#000; color:#fff; overflow:hidden;
+      font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ---------- deep-space backdrop ---------- */
+    .nebula {
+      position:fixed; inset:-20%; z-index:0; pointer-events:none;
+      background:
+        radial-gradient(40% 35% at 25% 30%, rgba(60,90,255,.15), transparent 70%),
+        radial-gradient(35% 30% at 75% 72%, rgba(130,70,255,.11), transparent 70%),
+        radial-gradient(30% 25% at 62% 18%, rgba(0,200,255,.06), transparent 70%);
+      animation:drift 70s ease-in-out infinite alternate;
+    }
+    @keyframes drift {
+      from { transform:translate(-2%, 1%) scale(1.03); }
+      to   { transform:translate(2%, -1%) scale(1.12); }
+    }
+    #space { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+    /* ---------- layout ---------- */
+    .screen {
+      position:relative; z-index:1; min-height:100%;
+      display:flex; align-items:center; justify-content:center;
+      padding:max(1.5rem,env(safe-area-inset-top)) max(1.25rem,env(safe-area-inset-right))
+              max(1.5rem,env(safe-area-inset-bottom)) max(1.25rem,env(safe-area-inset-left));
+    }
+    .stage { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:clamp(1rem,3.5vh,2rem); max-width:100%; }
+
+    /* ---------- orbital rings ---------- */
+    .rings { position:absolute; width:min(92vmin,820px); aspect-ratio:1; pointer-events:none; }
+    .ring { position:absolute; border-radius:50%; }
+    .r1 { inset:0; border:1px solid rgba(79,140,255,.16); animation:spin 140s linear infinite; }
+    .r1::after {
+      content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; margin-left:-3px;
+      border-radius:50%; background:#fff; box-shadow:0 0 12px 3px rgba(79,140,255,.9);
+    }
+    .r2 { inset:11%; border:1px dashed rgba(130,175,255,.14); animation:spin 95s linear infinite reverse; }
+    .r3 { inset:24%; border:1px solid rgba(255,255,255,.05); }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ---------- countdown ---------- */
+    .countdown {
+      margin:0; line-height:1; white-space:nowrap; max-width:100%;
+      font-family:"Orbitron","Inter",system-ui,sans-serif; font-weight:800;
+      font-size:clamp(3.5rem, min(17vw, 26vh), 13rem);
+      font-variant-numeric:tabular-nums; letter-spacing:.02em;
+      filter:drop-shadow(0 0 22px rgba(79,140,255,.45));
+    }
+    .digits {
+      display:inline-block;
+      background:linear-gradient(180deg,#fff 0%,var(--ice) 52%,var(--accent) 100%);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      -webkit-text-fill-color:transparent;
+      animation:tick 320ms ease-out;
+    }
+    @keyframes tick {
+      from { opacity:.5; transform:translateY(.05em); filter:blur(2px); }
+      to   { opacity:1;  transform:none;              filter:blur(0); }
+    }
+
+    /* day-progress hairline */
+    .track { width:min(60vw,420px); height:1px; background:rgba(255,255,255,.12); overflow:hidden; border-radius:1px; }
+    .fill  { display:block; height:100%; width:100%; transform-origin:left center; transform:scaleX(0);
+             background:linear-gradient(90deg,transparent,var(--accent) 60%,#fff); }
+
+    /* ---------- tiny label at the end ---------- */
+    .label {
+      position:absolute; z-index:2; left:0; right:0; margin:0; text-align:center;
+      bottom:max(1.25rem, env(safe-area-inset-bottom));
+      font-weight:500; font-size:.7rem; letter-spacing:.55em; padding-left:.55em;
+      color:rgba(255,255,255,.5);
+    }
+
+    /* ---------- install button (only shown when installable) ---------- */
+    .install {
+      position:absolute; z-index:3; top:max(1rem,env(safe-area-inset-top)); right:max(1rem,env(safe-area-inset-right));
+      font:500 .65rem/1 "Inter",system-ui,sans-serif; letter-spacing:.25em; text-transform:uppercase;
+      color:rgba(255,255,255,.75); background:rgba(79,140,255,.08);
+      border:1px solid rgba(79,140,255,.35); border-radius:999px; padding:.7rem 1rem; cursor:pointer;
+      transition:background .2s, border-color .2s;
+    }
+    .install:hover { background:rgba(79,140,255,.2); border-color:rgba(79,140,255,.7); }
+    .install[hidden], .tip[hidden] { display:none; }
+    .tip {
+      position:absolute; z-index:3; top:calc(max(1rem,env(safe-area-inset-top)) + 3rem);
+      right:max(1rem,env(safe-area-inset-right)); margin:0; max-width:15rem; text-align:right;
+      font-size:.72rem; line-height:1.5; color:rgba(255,255,255,.65);
+    }
+
+
+    /* ---------- challenge button ---------- */
+    .challenge {
+      display:inline-block; text-decoration:none; cursor:pointer;
+      font:600 .8rem/1 "Orbitron","Inter",system-ui,sans-serif; letter-spacing:.35em; text-transform:uppercase;
+      padding:1.05rem 1.9rem 1.05rem 2.25rem; border-radius:999px; color:#fff;
+      background:rgba(79,140,255,.10); border:1px solid rgba(79,140,255,.6);
+      box-shadow:0 0 18px rgba(79,140,255,.35), inset 0 0 14px rgba(79,140,255,.18);
+      transition:background .2s, box-shadow .2s, transform .2s;
+    }
+    .challenge:hover, .challenge:focus-visible {
+      background:rgba(79,140,255,.25); box-shadow:0 0 28px rgba(79,140,255,.7), inset 0 0 18px rgba(79,140,255,.3);
+      transform:translateY(-1px); outline:none;
+    }
+    .challenge:active { transform:scale(.98); }
+
+    @media (prefers-reduced-motion:reduce) {
+      .nebula,.r1,.r2,.digits { animation:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="nebula"></div>
+  <canvas id="space"></canvas>
+
+  <main class="screen">
+    <div class="rings" aria-hidden="true"><i class="ring r1"></i><i class="ring r2"></i><i class="ring r3"></i></div>
+
+    <div class="stage">
+      <p class="countdown" id="countdown" role="timer" aria-live="off"><span class="digits" id="digits">86400</span></p>
+      <div class="track" aria-hidden="true"><span class="fill" id="fill"></span></div>
+      <a class="challenge" id="challenge" target="_blank" rel="noopener noreferrer">Challenge</a>
+    </div>
+
+    <h1 class="label">12 AM</h1>
+
+    <button class="install" id="install" hidden>Install</button>
+    <p class="tip" id="tip" hidden>Tap the Share icon, then &ldquo;Add to Home Screen&rdquo;.</p>
+  </main>
+
+  <script>
+  (function () {
+    "use strict";
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    /* ================= COUNTDOWN ================= */
+    var digitsEl = document.getElementById("digits");
+    var fillEl = document.getElementById("fill");
+    var countdownEl = document.getElementById("countdown");
+    var timer;
+
+    function render() {
+      var now = new Date();
+      var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+      // Built from local calendar fields, so DST days (23h / 25h) are handled by the browser.
+      var start = new Date(y, m, d, 0, 0, 0, 0);
+      var end = new Date(y, m, d + 1, 0, 0, 0, 0);
+      var ms = end.getTime() - now.getTime();
+      var secs = Math.max(1, Math.ceil(ms / 1000));
+      var text = String(secs);
+
+      if (digitsEl.textContent !== text) {
+        digitsEl.textContent = text;
+        digitsEl.style.animation = "none";
+        void digitsEl.offsetWidth;          // restart the fade
+        digitsEl.style.animation = "";
+        countdownEl.setAttribute("aria-label", text + " seconds until midnight");
+      }
+      fillEl.style.transform = "scaleX(" + (1 - ms / (end.getTime() - start.getTime())).toFixed(5) + ")";
+
+      // Wake up exactly when the number next changes (no drift, no "minus one").
+      var delay = ms - (Math.ceil(ms / 1000) - 1) * 1000;
+      timer = setTimeout(render, Math.min(1000, Math.max(1, delay)));
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") { clearTimeout(timer); render(); }
+    });
+    render();
+
+    /* ================= STARFIELD ================= */
+    var canvas = document.getElementById("space");
+    var ctx = canvas.getContext("2d");
+    var W = 0, H = 0, stars = [], shoot = null, nextShoot = 0, last = 0;
+
+    function newStar(anyDepth) {
+      return { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1,
+               z: anyDepth ? Math.random() * 0.97 + 0.03 : 1, blue: Math.random() < 0.28 };
+    }
+    function resize() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      canvas.style.width = W + "px"; canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var n = Math.min(420, Math.round((W * H) / 5500));
+      stars = [];
+      for (var i = 0; i < n; i++) stars.push(newStar(true));
+      if (reduce) draw(0);
+    }
+    function color(s, a) {
+      return s.blue ? "rgba(150,190,255," + a + ")" : "rgba(255,255,255," + a + ")";
+    }
+    function draw(dt) {
+      ctx.clearRect(0, 0, W, H);
+      var cx = W / 2, cy = H / 2;
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        s.z -= dt * 0.03;                               // slow drift toward the viewer
+        var px = cx + (s.x / s.z) * cx, py = cy + (s.y / s.z) * cy;
+        if (s.z <= 0.03 || px < -10 || px > W + 10 || py < -10 || py > H + 10) {
+          stars[i] = newStar(false); continue;
+        }
+        var near = 1 - s.z, a = Math.min(1, near * 1.5 + 0.12), r = near * 1.7 + 0.35;
+        ctx.fillStyle = color(s, a.toFixed(3));
+        if (!reduce && near > 0.55) {                    // faint streak on close stars
+          var pz = s.z + dt * 0.03 * 5;
+          var qx = cx + (s.x / pz) * cx, qy = cy + (s.y / pz) * cy;
+          ctx.strokeStyle = color(s, (a * 0.6).toFixed(3)); ctx.lineWidth = r;
+          ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fill();
+      }
+      drawShootingStar(dt);
+    }
+    function drawShootingStar(dt) {
+      if (reduce) return;
+      var now = performance.now();
+      if (!shoot && now > nextShoot) {
+        var fromLeft = Math.random() < 0.5;
+        shoot = { x: Math.random() * W * 0.6 + (fromLeft ? 0 : W * 0.4), y: Math.random() * H * 0.4,
+                  vx: (fromLeft ? 1 : -1) * (W * 0.9), vy: H * 0.5, life: 0 };
+      }
+      if (!shoot) return;
+      shoot.life += dt; shoot.x += shoot.vx * dt; shoot.y += shoot.vy * dt;
+      var k = 1 - shoot.life / 0.9;
+      if (k <= 0) { shoot = null; nextShoot = now + 6000 + Math.random() * 9000; return; }
+      var tx = shoot.x - shoot.vx * 0.09, ty = shoot.y - shoot.vy * 0.09;
+      var g = ctx.createLinearGradient(tx, ty, shoot.x, shoot.y);
+      g.addColorStop(0, "rgba(120,170,255,0)"); g.addColorStop(1, "rgba(255,255,255," + (0.85 * k).toFixed(3) + ")");
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(shoot.x, shoot.y); ctx.stroke();
+    }
+    function frame(t) {
+      var dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+      draw(dt);
+      requestAnimationFrame(frame);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+    nextShoot = performance.now() + 4000;
+    if (!reduce) requestAnimationFrame(frame);
+
+    /* ================= CHALLENGE BUTTON ================= */
+    // >>> PASTE YOUR GOOGLE MEET LINK BETWEEN THE QUOTES BELOW <<<
+    var MEET_LINK = "";
+    // Example: var MEET_LINK = "https://meet.google.com/abc-defg-hij";
+
+    var challengeEl = document.getElementById("challenge");
+    var meetOk = /^https:\/\/meet\.google\.com\/[a-z0-9\-_?=&.%]+$/i.test(MEET_LINK.trim());
+    if (meetOk) {
+      challengeEl.href = MEET_LINK.trim();
+    } else {
+      // No valid link yet: do nothing on click (no message, no popup).
+      challengeEl.addEventListener("click", function (e) { e.preventDefault(); });
+    }
+
+    /* ================= INSTALL (PWA) ================= */
+    var installBtn = document.getElementById("install");
+    var tip = document.getElementById("tip");
+    var deferred = null;
+    var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+                (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault(); deferred = e; if (!standalone) installBtn.hidden = false;
+    });
+    window.addEventListener("appinstalled", function () { installBtn.hidden = true; tip.hidden = true; deferred = null; });
+    if (isIOS && !standalone) installBtn.hidden = false;
+
+    installBtn.addEventListener("click", function () {
+      if (deferred) {
+        deferred.prompt();
+        deferred.userChoice.then(function () { deferred = null; installBtn.hidden = true; });
+      } else {
+        tip.hidden = !tip.hidden;          // iOS has no install prompt, so show the steps
+      }
+    });
+
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+      window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+    }
+  })();
+  </script>
+</body>
+</html>
