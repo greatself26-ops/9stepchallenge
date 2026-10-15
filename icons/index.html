@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Live countdown of the seconds remaining until midnight." />
+  <title>12 AM</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="12 AM" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500&family=Orbitron:wght@600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root { --accent:#4f8cff; --ice:#9cc2ff; }
+    *,*::before,*::after { box-sizing:border-box; }
+    html,body { height:100%; margin:0; }
+    body {
+      background:#000; color:#fff; overflow:hidden;
+      font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ---------- deep-space backdrop ---------- */
+    .nebula {
+      position:fixed; inset:-20%; z-index:0; pointer-events:none;
+      background:
+        radial-gradient(40% 35% at 25% 30%, rgba(60,90,255,.15), transparent 70%),
+        radial-gradient(35% 30% at 75% 72%, rgba(130,70,255,.11), transparent 70%),
+        radial-gradient(30% 25% at 62% 18%, rgba(0,200,255,.06), transparent 70%);
+      animation:drift 70s ease-in-out infinite alternate;
+    }
+    @keyframes drift {
+      from { transform:translate(-2%, 1%) scale(1.03); }
+      to   { transform:translate(2%, -1%) scale(1.12); }
+    }
+    #space { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+    /* ---------- layout ---------- */
+    .screen {
+      position:relative; z-index:1; min-height:100%;
+      display:flex; align-items:center; justify-content:center;
+      padding:max(1.5rem,env(safe-area-inset-top)) max(1.25rem,env(safe-area-inset-right))
+              max(1.5rem,env(safe-area-inset-bottom)) max(1.25rem,env(safe-area-inset-left));
+    }
+    .stage { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:clamp(1rem,3.5vh,2rem); max-width:100%; }
+
+    /* ---------- orbital rings ---------- */
+    .rings { position:absolute; width:min(92vmin,820px); aspect-ratio:1; pointer-events:none; }
+    .ring { position:absolute; border-radius:50%; }
+    .r1 { inset:0; border:1px solid rgba(79,140,255,.16); animation:spin 140s linear infinite; }
+    .r1::after {
+      content:""; position:absolute; top:-3px; left:50%; width:6px; height:6px; margin-left:-3px;
+      border-radius:50%; background:#fff; box-shadow:0 0 12px 3px rgba(79,140,255,.9);
+    }
+    .r2 { inset:11%; border:1px dashed rgba(130,175,255,.14); animation:spin 95s linear infinite reverse; }
+    .r3 { inset:24%; background:repeating-conic-gradient(rgba(150,190,255,.5) 0 .5deg,transparent .5deg 6deg);
+          -webkit-mask:radial-gradient(circle closest-side,transparent 91%,#000 92%);
+          mask:radial-gradient(circle closest-side,transparent 91%,#000 92%); animation:spin 220s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ---------- countdown ---------- */
+    .countdown {
+      margin:0; line-height:1; white-space:nowrap; max-width:100%;
+      font-family:"Orbitron","Inter",system-ui,sans-serif; font-weight:800;
+      font-size:clamp(3.5rem, min(17vw, 26vh), 13rem);
+      font-variant-numeric:tabular-nums; letter-spacing:.02em;
+      filter:drop-shadow(0 0 22px rgba(79,140,255,.45));
+    }
+    .digits {
+      display:inline-block;
+      background:linear-gradient(180deg,#fff 0%,var(--ice) 52%,var(--accent) 100%);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      -webkit-text-fill-color:transparent;
+      animation:tick 320ms ease-out;
+    }
+    @keyframes tick {
+      from { opacity:.5; transform:translateY(.05em); filter:blur(2px); }
+      to   { opacity:1;  transform:none;              filter:blur(0); }
+    }
+
+    /* day-progress hairline */
+    .track { width:min(60vw,420px); height:1px; background:rgba(255,255,255,.12); overflow:hidden; border-radius:1px; }
+    .fill  { display:block; height:100%; width:100%; transform-origin:left center; transform:scaleX(0);
+             background:linear-gradient(90deg,transparent,var(--accent) 60%,#fff); }
+
+    /* ---------- tiny label at the end ---------- */
+    .label {
+      position:absolute; z-index:2; left:0; right:0; margin:0; text-align:center;
+      bottom:max(1.25rem, env(safe-area-inset-bottom));
+      font-weight:500; font-size:.7rem; letter-spacing:.55em; padding-left:.55em;
+      color:rgba(255,255,255,.5);
+    }
+
+    /* ---------- install button (only shown when installable) ---------- */
+    .install {
+      position:absolute; z-index:3; top:calc(max(.75rem,env(safe-area-inset-top)) + 2.25rem); right:calc(max(.75rem,env(safe-area-inset-right)) + .5rem);
+      font:500 .65rem/1 "Inter",system-ui,sans-serif; letter-spacing:.25em; text-transform:uppercase;
+      color:rgba(255,255,255,.75); background:rgba(79,140,255,.08);
+      border:1px solid rgba(79,140,255,.35); border-radius:999px; padding:.7rem 1rem; cursor:pointer;
+      transition:background .2s, border-color .2s;
+    }
+    .install:hover { background:rgba(79,140,255,.2); border-color:rgba(79,140,255,.7); }
+    .install[hidden], .tip[hidden] { display:none; }
+    .tip {
+      position:absolute; z-index:3; top:calc(max(.75rem,env(safe-area-inset-top)) + 5.5rem);
+      right:max(1rem,env(safe-area-inset-right)); margin:0; max-width:15rem; text-align:right;
+      font-size:.72rem; line-height:1.5; color:rgba(255,255,255,.65);
+    }
+
+
+    /* ---------- challenge button ---------- */
+    .challenge {
+      display:inline-block; text-decoration:none; cursor:pointer;
+      font:600 .8rem/1 "Orbitron","Inter",system-ui,sans-serif; letter-spacing:.35em; text-transform:uppercase;
+      padding:1.05rem 1.9rem 1.05rem 2.25rem; border-radius:999px; color:#fff;
+      background:rgba(79,140,255,.10); border:1px solid rgba(79,140,255,.6);
+      box-shadow:0 0 18px rgba(79,140,255,.35), inset 0 0 14px rgba(79,140,255,.18);
+      transition:background .2s, box-shadow .2s, transform .2s;
+    }
+    .challenge:hover, .challenge:focus-visible {
+      background:rgba(79,140,255,.25); box-shadow:0 0 28px rgba(79,140,255,.7), inset 0 0 18px rgba(79,140,255,.3);
+      transform:translateY(-1px); outline:none;
+    }
+    .challenge:active { transform:scale(.98); }
+
+
+    /* ---------- passcode gate ---------- */
+    .challenge[hidden], .gate[hidden] { display:none; }
+    .gate {
+      display:flex; flex-direction:column; align-items:center; gap:1rem; text-align:center; position:relative;
+      animation:pop 380ms cubic-bezier(.2,.9,.3,1.2);
+    }
+    @keyframes pop { from { opacity:0; transform:translateY(10px) scale(.9); } to { opacity:1; transform:none; } }
+    .gate-text { margin:0; max-width:19rem; font-size:.8rem; line-height:1.6; color:rgba(255,255,255,.75); }
+    .wa {
+      display:grid; place-items:center; width:64px; height:64px; border-radius:50%;
+      background:#25D366; box-shadow:0 0 0 0 rgba(37,211,102,.6), 0 0 26px rgba(37,211,102,.45);
+      animation:pulse 2.2s ease-out infinite; transition:transform .2s; cursor:pointer;
+    }
+    .wa:hover, .wa:focus-visible { transform:scale(1.08); outline:none; }
+    .wa svg { width:34px; height:34px; fill:#fff; }
+    @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(37,211,102,.55), 0 0 26px rgba(37,211,102,.45); }
+                       70%,100% { box-shadow:0 0 0 18px rgba(37,211,102,0), 0 0 26px rgba(37,211,102,.45); } }
+    .code { display:flex; gap:.6rem; align-items:center; justify-content:center; flex-wrap:wrap; }
+    .code input {
+      width:11rem; padding:.85rem 1rem; text-align:center; letter-spacing:.3em; text-transform:uppercase;
+      font:500 .8rem/1 "Inter",system-ui,sans-serif; color:#fff; background:rgba(255,255,255,.04);
+      border:1px solid rgba(79,140,255,.4); border-radius:999px; outline:none;
+    }
+    .code input:focus { border-color:rgba(79,140,255,.9); box-shadow:0 0 16px rgba(79,140,255,.35); }
+    .code input.bad { border-color:rgba(255,90,90,.8); animation:shake 320ms; }
+    @keyframes shake { 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }
+    .code button {
+      cursor:pointer; color:#fff; background:rgba(79,140,255,.18); border:1px solid rgba(79,140,255,.6);
+      border-radius:999px; padding:.85rem 1.3rem; font:600 .72rem/1 "Orbitron","Inter",system-ui,sans-serif;
+      letter-spacing:.25em; text-transform:uppercase;
+    }
+    .code button:hover { background:rgba(79,140,255,.35); }
+    .back { cursor:pointer; background:none; border:0; color:rgba(255,255,255,.4); font-size:.7rem; letter-spacing:.2em; text-transform:uppercase; }
+    .back:hover { color:rgba(255,255,255,.8); }
+
+
+    /* ---------- futuristic HUD layer ---------- */
+    .grid {
+      position:fixed; left:-60%; right:-60%; bottom:0; height:90vh; z-index:0; pointer-events:none; opacity:.6;
+      transform:perspective(420px) rotateX(62deg); transform-origin:center bottom;
+      background-image:linear-gradient(rgba(79,140,255,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.28) 1px,transparent 1px);
+      background-size:56px 56px; animation:gridmove 5s linear infinite;
+      -webkit-mask-image:linear-gradient(to top,#000,transparent 80%); mask-image:linear-gradient(to top,#000,transparent 80%);
+    }
+    @keyframes gridmove { to { background-position:0 56px; } }
+    .scan {
+      position:fixed; left:0; right:0; height:18vh; z-index:1; pointer-events:none;
+      background:linear-gradient(180deg,transparent,rgba(79,140,255,.07),transparent); animation:sweep 9s linear infinite;
+    }
+    @keyframes sweep { from { transform:translateY(-20vh); } to { transform:translateY(110vh); } }
+    .hud { position:fixed; inset:0; z-index:1; pointer-events:none; }
+    .c { position:absolute; width:22px; height:22px; border:1px solid rgba(79,140,255,.6); }
+    .c.tl { top:max(.75rem,env(safe-area-inset-top)); left:max(.75rem,env(safe-area-inset-left)); border-right:0; border-bottom:0; }
+    .c.tr { top:max(.75rem,env(safe-area-inset-top)); right:max(.75rem,env(safe-area-inset-right)); border-left:0; border-bottom:0; }
+    .c.bl { bottom:max(.75rem,env(safe-area-inset-bottom)); left:max(.75rem,env(safe-area-inset-left)); border-right:0; border-top:0; }
+    .c.br { bottom:max(.75rem,env(safe-area-inset-bottom)); right:max(.75rem,env(safe-area-inset-right)); border-left:0; border-top:0; }
+    .ro { position:absolute; font:500 .58rem/1 "Orbitron","Inter",system-ui,sans-serif; letter-spacing:.28em; color:rgba(150,190,255,.55); text-transform:uppercase; }
+    .ro.tl { top:calc(max(.75rem,env(safe-area-inset-top)) + .35rem); left:calc(max(.75rem,env(safe-area-inset-left)) + 2rem); }
+    .ro.bl { bottom:calc(max(.75rem,env(safe-area-inset-bottom)) + .35rem); left:calc(max(.75rem,env(safe-area-inset-left)) + 2rem); font-variant-numeric:tabular-nums; }
+    .ro.br { bottom:calc(max(.75rem,env(safe-area-inset-bottom)) + .35rem); right:calc(max(.75rem,env(safe-area-inset-right)) + 2rem); font-variant-numeric:tabular-nums; }
+    .countdown { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+
+    @media (prefers-reduced-motion:reduce) {
+      .nebula,.r1,.r2,.r3,.digits,.gate,.wa,.grid,.scan { animation:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="nebula"></div>
+  <canvas id="space"></canvas>
+  <div class="grid" aria-hidden="true"></div>
+  <div class="scan" aria-hidden="true"></div>
+  <div class="hud" aria-hidden="true">
+    <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+    <span class="ro tl">T-MINUS</span>
+    <span class="ro bl" id="hudTime">00:00:00</span>
+    <span class="ro br" id="hudPct">0.00%</span>
+  </div>
+
+  <main class="screen">
+    <div class="rings" aria-hidden="true"><i class="ring r1"></i><i class="ring r2"></i><i class="ring r3"></i></div>
+
+    <div class="stage">
+      <p class="countdown" id="countdown" role="timer" aria-live="off"><span class="digits" id="digits">86400</span></p>
+      <div class="track" aria-hidden="true"><span class="fill" id="fill"></span></div>
+      <button type="button" class="challenge" id="challenge">Challenge</button>
+
+      <div class="gate" id="gate" hidden>
+        <p class="gate-text">To enter the challenge you need a passcode.<br />Tap the WhatsApp icon to get it.</p>
+        <a class="wa" id="wa" target="_blank" rel="noopener noreferrer" aria-label="Get the passcode on WhatsApp">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        </a>
+        <form class="code" id="codeForm" autocomplete="off">
+          <input id="code" type="text" placeholder="Passcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Passcode" />
+          <button type="submit">Enter</button>
+        </form>
+        <button type="button" class="back" id="back">Back</button>
+      </div>
+    </div>
+
+    <h1 class="label">12 AM</h1>
+
+    <button class="install" id="install" hidden>Install</button>
+    <p class="tip" id="tip" hidden>Tap the Share icon, then &ldquo;Add to Home Screen&rdquo;.</p>
+  </main>
+
+  <script>
+  (function () {
+    "use strict";
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    /* ================= COUNTDOWN ================= */
+    var digitsEl = document.getElementById("digits");
+    var fillEl = document.getElementById("fill");
+    var countdownEl = document.getElementById("countdown");
+    var hudTime = document.getElementById("hudTime");
+    var hudPct = document.getElementById("hudPct");
+    function pad(n) { return (n < 10 ? "0" : "") + n; }
+    var timer;
+
+    function render() {
+      var now = new Date();
+      var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+      // Built from local calendar fields, so DST days (23h / 25h) are handled by the browser.
+      var start = new Date(y, m, d, 0, 0, 0, 0);
+      var end = new Date(y, m, d + 1, 0, 0, 0, 0);
+      var ms = end.getTime() - now.getTime();
+      var secs = Math.max(1, Math.ceil(ms / 1000));
+      var text = String(secs);
+
+      if (digitsEl.textContent !== text) {
+        digitsEl.textContent = text;
+        digitsEl.style.animation = "none";
+        void digitsEl.offsetWidth;          // restart the fade
+        digitsEl.style.animation = "";
+        countdownEl.setAttribute("aria-label", text + " seconds until midnight");
+      }
+      fillEl.style.transform = "scaleX(" + (1 - ms / (end.getTime() - start.getTime())).toFixed(5) + ")";
+      hudTime.textContent = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+      hudPct.textContent = ((1 - ms / (end.getTime() - start.getTime())) * 100).toFixed(2) + "%";
+
+      // Wake up exactly when the number next changes (no drift, no "minus one").
+      var delay = ms - (Math.ceil(ms / 1000) - 1) * 1000;
+      timer = setTimeout(render, Math.min(1000, Math.max(1, delay)));
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") { clearTimeout(timer); render(); }
+    });
+    render();
+
+    /* ================= STARFIELD ================= */
+    var canvas = document.getElementById("space");
+    var ctx = canvas.getContext("2d");
+    var W = 0, H = 0, stars = [], shoot = null, nextShoot = 0, last = 0, boost = 1;
+
+    function newStar(anyDepth) {
+      return { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1,
+               z: anyDepth ? Math.random() * 0.97 + 0.03 : 1, blue: Math.random() < 0.28 };
+    }
+    function resize() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      canvas.style.width = W + "px"; canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var n = Math.min(420, Math.round((W * H) / 5500));
+      stars = [];
+      for (var i = 0; i < n; i++) stars.push(newStar(true));
+      if (reduce) draw(0);
+    }
+    function color(s, a) {
+      return s.blue ? "rgba(150,190,255," + a + ")" : "rgba(255,255,255," + a + ")";
+    }
+    function draw(dt) {
+      ctx.clearRect(0, 0, W, H);
+      boost += (1 - boost) * Math.min(1, dt * 2.2);
+      var cx = W / 2, cy = H / 2;
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        s.z -= dt * 0.03 * boost;                               // slow drift toward the viewer
+        var px = cx + (s.x / s.z) * cx, py = cy + (s.y / s.z) * cy;
+        if (s.z <= 0.03 || px < -10 || px > W + 10 || py < -10 || py > H + 10) {
+          stars[i] = newStar(false); continue;
+        }
+        var near = 1 - s.z, a = Math.min(1, near * 1.5 + 0.12), r = near * 1.7 + 0.35;
+        ctx.fillStyle = color(s, a.toFixed(3));
+        if (!reduce && near > 0.55) {                    // faint streak on close stars
+          var pz = s.z + dt * 0.03 * 5;
+          var qx = cx + (s.x / pz) * cx, qy = cy + (s.y / pz) * cy;
+          ctx.strokeStyle = color(s, (a * 0.6).toFixed(3)); ctx.lineWidth = r;
+          ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fill();
+      }
+      drawShootingStar(dt);
+    }
+    function drawShootingStar(dt) {
+      if (reduce) return;
+      var now = performance.now();
+      if (!shoot && now > nextShoot) {
+        var fromLeft = Math.random() < 0.5;
+        shoot = { x: Math.random() * W * 0.6 + (fromLeft ? 0 : W * 0.4), y: Math.random() * H * 0.4,
+                  vx: (fromLeft ? 1 : -1) * (W * 0.9), vy: H * 0.5, life: 0 };
+      }
+      if (!shoot) return;
+      shoot.life += dt; shoot.x += shoot.vx * dt; shoot.y += shoot.vy * dt;
+      var k = 1 - shoot.life / 0.9;
+      if (k <= 0) { shoot = null; nextShoot = now + 6000 + Math.random() * 9000; return; }
+      var tx = shoot.x - shoot.vx * 0.09, ty = shoot.y - shoot.vy * 0.09;
+      var g = ctx.createLinearGradient(tx, ty, shoot.x, shoot.y);
+      g.addColorStop(0, "rgba(120,170,255,0)"); g.addColorStop(1, "rgba(255,255,255," + (0.85 * k).toFixed(3) + ")");
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(shoot.x, shoot.y); ctx.stroke();
+    }
+    function frame(t) {
+      var dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+      draw(dt);
+      requestAnimationFrame(frame);
+    }
+    countdownEl.addEventListener("click", function () { boost = 14; });   // tap the number to warp
+    window.addEventListener("resize", resize);
+    resize();
+    nextShoot = performance.now() + 4000;
+    if (!reduce) requestAnimationFrame(frame);
+
+    /* ================= CHALLENGE (passcode gate) ================= */
+    // >>>>>>>>>>  EDIT THESE FOUR VALUES  <<<<<<<<<<
+    var MEET_LINK = "https://meet.google.com/cdu-hyjs-dcq";          // your Google Meet link, e.g. "https://meet.google.com/abc-defg-hij"
+    var WHATSAPP_NUMBER = "919003979426";    // country code + number, digits only, e.g. "919876543210"
+    var PASSCODE = "030900";           // the passcode you send people on WhatsApp
+    var WHATSAPP_MESSAGE = "Hi! I'd like the passcode for the challenge.";
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    var challengeEl = document.getElementById("challenge");
+    var gateEl = document.getElementById("gate");
+    var waEl = document.getElementById("wa");
+    var formEl = document.getElementById("codeForm");
+    var codeEl = document.getElementById("code");
+    var backEl = document.getElementById("back");
+
+    var meetLink = MEET_LINK.trim();
+    var meetOk = /^https:\/\/meet\.google\.com\/[a-z0-9\-_?=&.%]+$/i.test(meetLink);
+    var waDigits = WHATSAPP_NUMBER.replace(/\D/g, "");
+
+    if (waDigits) {
+      waEl.href = "https://wa.me/" + waDigits + "?text=" + encodeURIComponent(WHATSAPP_MESSAGE);
+    } else {
+      waEl.addEventListener("click", function (e) { e.preventDefault(); });
+    }
+
+    challengeEl.addEventListener("click", function () {
+      challengeEl.hidden = true; gateEl.hidden = false; codeEl.value = "";
+    });
+    backEl.addEventListener("click", function () {
+      gateEl.hidden = true; challengeEl.hidden = false;
+    });
+
+    formEl.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var ok = PASSCODE.trim() !== "" && codeEl.value.trim().toLowerCase() === PASSCODE.trim().toLowerCase();
+      if (ok && meetOk) {
+        var a = document.createElement("a");     // an anchor click is never blocked as a popup
+        a.href = meetLink; a.target = "_blank"; a.rel = "noopener noreferrer";
+        document.body.appendChild(a); a.click(); a.remove();
+      } else {
+        codeEl.classList.remove("bad"); void codeEl.offsetWidth; codeEl.classList.add("bad");
+      }
+    });
+
+    /* ================= INSTALL (PWA) ================= */
+    var installBtn = document.getElementById("install");
+    var tip = document.getElementById("tip");
+    var deferred = null;
+    var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+                (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault(); deferred = e; if (!standalone) installBtn.hidden = false;
+    });
+    window.addEventListener("appinstalled", function () { installBtn.hidden = true; tip.hidden = true; deferred = null; });
+    if (isIOS && !standalone) installBtn.hidden = false;
+
+    installBtn.addEventListener("click", function () {
+      if (deferred) {
+        deferred.prompt();
+        deferred.userChoice.then(function () { deferred = null; installBtn.hidden = true; });
+      } else {
+        tip.hidden = !tip.hidden;          // iOS has no install prompt, so show the steps
+      }
+    });
+
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+      window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+    }
+  })();
+  </script>
+</body>
+</html>
